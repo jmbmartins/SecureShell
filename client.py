@@ -4,6 +4,10 @@ import socket
 def start_client():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(('localhost', 12345))
+    username = input("Enter username: ")
+    password = input("Enter password: ")
+    client_socket.send(bytes(username, 'utf-8'))
+    client_socket.send(bytes(password, 'utf-8'))
     print(client_socket.recv(1024).decode())
     client_socket.close()
 
