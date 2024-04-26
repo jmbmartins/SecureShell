@@ -1,20 +1,19 @@
-# Server.py
+# server.py
 import socket
 import ssl
 import bcrypt
 import subprocess
-import threading
 
 users = {}
-allowed_commands = ['ls', 'pwd', 'date']  # Add your allowed commands here
+allowed_commands = ['ls', 'pwd', 'whoami', 'date', 'uptime']
 
 def register_user(username, password):
     if username in users:
-        return 'User already exists'
+        return 'Username already exists'
     else:
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         users[username] = hashed_password
-        return 'User registered successfully'
+        return 'Registration successful'
 
 def handle_client(secure_socket):
     try:
@@ -32,6 +31,8 @@ def handle_client(secure_socket):
                 password = secure_socket.recv(1024).decode()
                 if username in users and bcrypt.checkpw(password.encode('utf-8'), users[username]):
                     secure_socket.send(bytes('Authentication successful', 'utf-8'))
+                else:
+                    secure_socket.send(bytes('Authentication failed', 'utf-8'))
             else:
                 # Check if the command is allowed
                 if command.split()[0] in allowed_commands:
@@ -47,23 +48,19 @@ def handle_client(secure_socket):
         secure_socket.close()
 
 def start_server():
-    try:
-        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        context.load_cert_chain(certfile="server-cert.pem", keyfile="server-key.pem")
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile="server-cert.pem", keyfile="server-key.pem")
 
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('localhost', 12345))
-        server_socket.listen(5)
-        print("Server is listening...")
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    secure_socket = context.wrap_socket(server_socket, server_side=True)
 
-        while True:
-            client_socket, addr = server_socket.accept()
-            secure_socket = context.wrap_socket(client_socket, server_side=True)
-            print(f"Got connection from {addr}")
-            client_thread = threading.Thread(target=handle_client, args=(secure_socket,))
-            client_thread.start()
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    secure_socket.bind(('localhost', 12345))
+    secure_socket.listen(5)
+
+    while True:
+        client_socket, address = secure_socket.accept()
+        print(f"Connection from {address} has been established!")
+        handle_client(client_socket)
 
 if __name__ == "__main__":
     start_server()

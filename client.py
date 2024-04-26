@@ -3,12 +3,13 @@ import socket
 import ssl
 
 def start_client():
+    secure_socket = None
     try:
         context = ssl.create_default_context()
         context.load_verify_locations(cafile="server-cert.pem")
 
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        secure_socket = context.wrap_socket(client_socket, server_side=False)
+        secure_socket = context.wrap_socket(client_socket, server_side=False, server_hostname='localhost')
 
         secure_socket.connect(('localhost', 12345))
 
@@ -46,7 +47,8 @@ def start_client():
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
-        secure_socket.close()
+        if secure_socket is not None:
+            secure_socket.close()
 
 if __name__ == "__main__":
     start_client()
