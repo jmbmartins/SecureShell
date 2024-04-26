@@ -1,6 +1,7 @@
 # client.py
 import socket
 import ssl
+import hashlib
 
 def start_client():
     secure_socket = None
@@ -31,7 +32,9 @@ def start_client():
                 password = input("Enter password: ")
                 secure_socket.send(bytes('login', 'utf-8'))
                 secure_socket.send(bytes(username, 'utf-8'))
-                secure_socket.send(bytes(password, 'utf-8'))
+                challenge = secure_socket.recv(1024)
+                response = hashlib.md5(password.encode('utf-8') + challenge).hexdigest()
+                secure_socket.send(bytes(response, 'utf-8'))
                 print(secure_socket.recv(1024).decode())
             elif choice == '3':
                 command = input("Enter a command to execute: ")
