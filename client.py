@@ -3,8 +3,12 @@ import socket
 import ssl
 
 def start_client():
+    """
+    Starts the client, connects to the server, and handles user input.
+    """
     secure_socket = None
     try:
+        # Create an SSL context to encrypt the communication
         context = ssl.create_default_context()
         context.load_verify_locations(cafile="server-cert.pem")
 
@@ -20,6 +24,7 @@ def start_client():
             print("0. Quit")
             choice = input("Enter your choice: ")
             if choice == '1':
+                # Register a new user
                 username = input("Enter username to register: ")
                 password = input("Enter password: ")
                 secure_socket.send(bytes('register', 'utf-8'))
@@ -27,6 +32,7 @@ def start_client():
                 secure_socket.send(bytes(password, 'utf-8'))
                 print(secure_socket.recv(1024).decode())
             elif choice == '2':
+                # Login with an existing user
                 username = input("Enter username to login: ")
                 password = input("Enter password: ")
                 secure_socket.send(bytes('login', 'utf-8'))
@@ -34,6 +40,7 @@ def start_client():
                 secure_socket.send(bytes(password, 'utf-8'))
                 print(secure_socket.recv(1024).decode())
             elif choice == '3':
+                # Execute a command
                 command = input("Enter a command to execute: ")
                 secure_socket.send(bytes(command, 'utf-8'))
                 response = secure_socket.recv(1024).decode()
@@ -42,6 +49,7 @@ def start_client():
                 else:
                     print(response)
             elif choice == '0':
+                # Quit the client
                 secure_socket.send(bytes('quit', 'utf-8'))
                 break
     except Exception as e:
