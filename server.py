@@ -2,8 +2,12 @@
 import socket
 import ssl
 import bcrypt
-import subprocess
+import os
+import getpass
+import time
+import platform
 import threading
+from datetime import timedelta
 
 # Dictionary to store users and their passwords
 users = {}
@@ -22,6 +26,30 @@ def register_user(username, password):
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         users[username] = hashed_password
         return 'Registration successful'
+
+def execute_command(command):
+    """
+    Executes a command and returns the output.
+    This function is platform-independent.
+    """
+    if command == 'ls':
+        return '\n'.join(os.listdir('.'))
+    elif command == 'pwd':
+        return os.getcwd()
+    elif command == 'whoami':
+        return getpass.getuser()
+    elif command == 'date':
+        return time.ctime()
+    elif command == 'uptime':
+        if platform.system() == 'Windows':
+            return 'Uptime not available on Windows'
+        else:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.readline().split()[0])
+                uptime_string = str(timedelta(seconds = uptime_seconds))
+                return uptime_string
+    else:
+        return 'Command not allowed'
 
 def handle_client(secure_socket):
     """
@@ -49,9 +77,8 @@ def handle_client(secure_socket):
                 # Check if the command is allowed
                 if command.split()[0] in allowed_commands:
                     # Execute the command and send the output back to the client
-                    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
-                    output, error = process.communicate()
-                    secure_socket.send(output)
+                    output = execute_command(command)
+                    secure_socket.send(bytes(output, 'utf-8'))
                 else:
                     secure_socket.send(bytes('Command not allowed', 'utf-8'))
     except Exception as e:
