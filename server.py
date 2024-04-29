@@ -3,6 +3,7 @@ import socket
 import ssl
 import bcrypt
 import subprocess
+import threading
 
 users = {}
 allowed_commands = ['ls', 'pwd', 'whoami', 'date', 'uptime']
@@ -60,7 +61,8 @@ def start_server():
     while True:
         client_socket, address = secure_socket.accept()
         print(f"Connection from {address} has been established!")
-        handle_client(client_socket)
+        client_thread = threading.Thread(target=handle_client, args=(client_socket,))
+        client_thread.start()
 
 if __name__ == "__main__":
     start_server()
