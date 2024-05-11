@@ -20,7 +20,6 @@ def start_client():
         while True:
             print("1. Register")
             print("2. Login")
-            print("3. Execute command")
             print("0. Quit")
             choice = input("Enter your choice: ")
             if choice == '1':
@@ -38,16 +37,20 @@ def start_client():
                 secure_socket.send(bytes('login', 'utf-8'))
                 secure_socket.send(bytes(username, 'utf-8'))
                 secure_socket.send(bytes(password, 'utf-8'))
-                print(secure_socket.recv(1024).decode())
-            elif choice == '3':
-                # Execute a command
-                command = input("Enter a command to execute: ")
-                secure_socket.send(bytes(command, 'utf-8'))
                 response = secure_socket.recv(1024).decode()
-                if response == 'Command not allowed':
-                    print("The command you entered is not allowed.")
-                else:
-                    print(response)
+                print(response)
+                if response == 'Authentication successful':
+                    while True:
+                        # Execute a command
+                        command = input("Enter a command to execute (or 'quit' to logout): ")
+                        if command == 'quit':
+                            break
+                        secure_socket.send(bytes(command, 'utf-8'))
+                        response = secure_socket.recv(1024).decode()
+                        if response == 'Command not allowed' or response == 'Please login first':
+                            print("The command you entered is not allowed or you are not logged in.")
+                        else:
+                            print(response)
             elif choice == '0':
                 # Quit the client
                 secure_socket.send(bytes('quit', 'utf-8'))

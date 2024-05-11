@@ -55,6 +55,7 @@ def handle_client(secure_socket):
     """
     Handles client requests. This includes registration, login, and command execution.
     """
+    logged_in = False
     try:
         while True:
             command = secure_socket.recv(1024).decode()
@@ -71,16 +72,19 @@ def handle_client(secure_socket):
                 # Check if the user exists and if the password is correct
                 if username in users and bcrypt.checkpw(password.encode('utf-8'), users[username]):
                     secure_socket.send(bytes('Authentication successful', 'utf-8'))
+                    logged_in = True
                 else:
                     secure_socket.send(bytes('Authentication failed', 'utf-8'))
-            else:
-                # Check if the command is allowed
+            elif logged_in:
+                # Check if the command is allowed and the user is logged in
                 if command.split()[0] in allowed_commands:
                     # Execute the command and send the output back to the client
                     output = execute_command(command)
                     secure_socket.send(bytes(output, 'utf-8'))
                 else:
                     secure_socket.send(bytes('Command not allowed', 'utf-8'))
+            else:
+                secure_socket.send(bytes('Please login first', 'utf-8'))
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
