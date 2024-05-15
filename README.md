@@ -10,23 +10,23 @@ Pensem numa forma de atacar o sistema (uma falha da sua implementação) e dediq
 
 Em termos de funcionalidades básicas:
 
-- A autenticação dos clientes no sistema é feita de uma forma segura;
+- A autenticação dos clientes no sistema é feita de uma forma segura; (João Martins)
 
-- As comunicações entre os clientes e o servidor são protegidas usando algoritmos de criptografia simétrica de qualidade;
+- As comunicações entre os clientes e o servidor são protegidas usando algoritmos de criptografia simétrica de qualidade; (João Marques)
 
-- As chaves de cifra (de sessão) são geradas sempre que se inicia nova sessão e são estabelecidas chaves diferentes para todos os tipos de mecanismos criptográficos;
+- As chaves de cifra (de sessão) são geradas sempre que se inicia nova sessão e são estabelecidas chaves diferentes para todos os tipos de mecanismos criptográficos; (Rui)
 
-- As mensagens entre clientes e servidor são protegidas com mecanismos de autenticação da origem da informação.
+- As mensagens entre clientes e servidor são protegidas com mecanismos de autenticação da origem da informação. (Fábio)
 
 3.3 Funcionalidades Avançadas
 
 Em termos de funcionalidades avançadas:
 
-- O sistema é multi-plataforma (i.e., o mesmo conjunto de aplicações funciona em diferentes sistemas operativos sem muitas modificações/configurações);
+- O sistema é multi-plataforma (i.e., o mesmo conjunto de aplicações funciona em diferentes sistemas operativos sem muitas modificações/configurações); (João Martins)
 
-- A autenticação é feita usando mecanismos de autenticação forte;
+- A autenticação é feita usando mecanismos de autenticação forte; (João Martins)
 
-- O sistema suporta autenticação mútua (cliente e servidor);
+- O sistema suporta autenticação mútua (cliente e servidor); (João Martins)
 
 - O sistema suporta vários mecanismos de troca de chaves, nomeadamente mecanismos da criptografia simétrica (e.g., chaves pré-distribuídas ou derivadas de uma palavra-passe) e assimétrica (e.g., Diffie-Hellman ou RSA);
 
