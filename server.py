@@ -8,12 +8,114 @@ import time
 import platform
 import threading
 from datetime import timedelta
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 
 # Dictionary to store users and their passwords
 users = {}
 
 # List of allowed commands that users can execute
 allowed_commands = ['ls', 'pwd', 'whoami', 'date', 'uptime']
+
+def generate_keys():
+    """
+    Generate RSA public and private keys.
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    # Generate RSA key pair
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048
+    )
+
+    # Serialize private key to PEM format
+    pem_private_key = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    # Write private key to file
+    with open("server/private_key.pem", "wb") as private_key_file:
+        private_key_file.write(pem_private_key)
+
+    # Extract public key from private key and serialize to PEM format
+    public_key = private_key.public_key()
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    # Write public key to file
+    with open("server/public_key.pem", "wb") as public_key_file:
+        public_key_file.write(pem_public_key)
+
+def load_keys():
+    """
+    Load RSA public and private keys from files.
+    """
+    from cryptography.hazmat.primitives import serialization
+
+    # Load private key
+    with open("server/private_key.pem", "rb") as private_key_file:
+        private_key = serialization.load_pem_private_key(
+            private_key_file.read(),
+            password=None
+        )
+
+    # Load public key
+    with open("server/public_key.pem", "rb") as public_key_file:
+        public_key = serialization.load_pem_public_key(
+            public_key_file.read()
+        )
+    
+    # Load public key
+    with open("client/public_key.pem", "rb") as public_key_file:
+        client_public_key = serialization.load_pem_public_key(
+            public_key_file.read()
+        )
+
+    return private_key, public_key, client_public_key
+
+def generate_aes_key():
+    """
+    Generate a symmetric AES-GCM key.
+    """
+    return os.urandom(32)  # 256-bit key for AES-GCM
+
+def encrypt_with_public_key(public_key, plaintext):
+    """
+    Encrypts data using RSA public key.
+    """
+    ciphertext = public_key.encrypt(
+        plaintext,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    return ciphertext
+
+def sign_with_private_key(private_key, data):
+    """
+    Signs data using RSA private key.
+    """
+    signature = private_key.sign(
+        data,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+    return signature
 
 def register_user(username, password):
     """
@@ -51,40 +153,76 @@ def execute_command(command):
     else:
         return 'Command not allowed'
 
+def encrypt_message(key, message):
+    """
+    Encrypts a message using AES-GCM.
+    """
+    iv = os.urandom(16)  # Generate a random IV
+    cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(message) + encryptor.finalize()
+    return iv + encryptor.tag + ciphertext
+
+def decrypt_message(key, ciphertext):
+    """
+    Decrypts a message using AES-GCM.
+    """
+    iv = ciphertext[:16]
+    tag = ciphertext[16:32]
+    ciphertext = ciphertext[32:]
+    cipher = Cipher(algorithms.AES(key), modes.GCM(iv, tag), backend=default_backend())
+    decryptor = cipher.decryptor()
+    return decryptor.update(ciphertext) + decryptor.finalize()
+
 def handle_client(secure_socket):
     """
     Handles client requests. This includes registration, login, and command execution.
     """
     logged_in = False
+    
     try:
+        private_key, public_key, client_public_key = load_keys()
+        
+        # Generate AES-GCM key
+        aes_key = generate_aes_key()
+
+        # Encrypt AES-GCM key with client's public key
+        encrypted_aes_key = encrypt_with_public_key(client_public_key, aes_key)
+
+        # Sign AES-GCM key with server's private key
+        signature = sign_with_private_key(private_key, encrypted_aes_key)
+
+        # Send encrypted AES-GCM key and signature to client
+        secure_socket.send(encrypted_aes_key)
+        secure_socket.send(signature)
         while True:
-            command = secure_socket.recv(1024).decode()
-            if command == 'quit':
+            command = decrypt_message(aes_key, secure_socket.recv(1024))
+            if command == b'quit':
                 break
-            elif command == 'register':
-                username = secure_socket.recv(1024).decode()
-                password = secure_socket.recv(1024).decode()
+            elif command == b'register':
+                username = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+                password = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
                 message = register_user(username, password)
-                secure_socket.send(bytes(message, 'utf-8'))
-            elif command == 'login':
-                username = secure_socket.recv(1024).decode()
-                password = secure_socket.recv(1024).decode()
+                secure_socket.send(encrypt_message(aes_key, message.encode()))
+            elif command == b'login':
+                username = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+                password = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
                 # Check if the user exists and if the password is correct
                 if username in users and bcrypt.checkpw(password.encode('utf-8'), users[username]):
-                    secure_socket.send(bytes('Authentication successful', 'utf-8'))
+                    secure_socket.send(encrypt_message(aes_key, b'Authentication successful'))
                     logged_in = True
                 else:
-                    secure_socket.send(bytes('Authentication failed', 'utf-8'))
+                    secure_socket.send(encrypt_message(aes_key, b'Authentication failed'))
             elif logged_in:
                 # Check if the command is allowed and the user is logged in
                 if command.split()[0] in allowed_commands:
                     # Execute the command and send the output back to the client
-                    output = execute_command(command)
-                    secure_socket.send(bytes(output, 'utf-8'))
+                    output = execute_command(command.decode())
+                    secure_socket.send(encrypt_message(aes_key, output.encode()))
                 else:
-                    secure_socket.send(bytes('Command not allowed', 'utf-8'))
+                    secure_socket.send(encrypt_message(aes_key, b'Command not allowed'))
             else:
-                secure_socket.send(bytes('Please login first', 'utf-8'))
+                secure_socket.send(encrypt_message(aes_key, b'Please login first'))
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
@@ -103,6 +241,12 @@ def start_server():
 
     secure_socket.bind(('localhost', 12345))
     secure_socket.listen(5)
+
+    if not os.path.exists("server/private_key.pem") or not os.path.exists("server/public_key.pem"):
+        print("Server does not have RSA keys. They are currently being created in ./server")
+        os.makedirs("server")
+        generate_keys()
+    
 
     while True:
         client_socket, address = secure_socket.accept()
