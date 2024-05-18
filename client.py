@@ -1,11 +1,38 @@
-# client.py
+#client.py
 import socket
 import ssl
 import os
-from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives import serialization, hashes, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+import bcrypt
+import hashlib
+
+def send_message(message, key, sockety):
+    message = message.encode('utf-8')
+    sockety.send(encrypt_message(key, message))
+    h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    h.update(message)
+    sockety.send(encrypt_message(key, h.finalize()))
+
+def receive_message(key, sockety):
+    response = decrypt_message(key, sockety.recv(1024))
+    response_hash = decrypt_message(key, sockety.recv(1024))
+    h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    h.update(response)
+    hash_is_good = True
+    try:
+        h.verify(response_hash)
+    except hmac.InvalidSignature:
+        hash_is_good = False
+
+    if hash_is_good:
+        return response.decode('utf-8')
+    else:
+        print("CLAIRE WARNING")
+        return "CLAIRE WARNING"
+
 
 def generate_keys():
     """
@@ -179,18 +206,18 @@ def start_client():
                 # Register a new user
                 username = input("Enter username to register: ")
                 password = input("Enter password: ")
-                secure_socket.send(encrypt_message(aes_key, b'register'))
-                secure_socket.send(encrypt_message(aes_key, username.encode()))
-                secure_socket.send(encrypt_message(aes_key, password.encode()))
-                print(decrypt_message(aes_key, secure_socket.recv(1024)).decode())
+                send_message('register', aes_key, secure_socket)
+                send_message(username, aes_key, secure_socket)
+                send_message(password, aes_key, secure_socket)
+                print(receive_message(aes_key, secure_socket))
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
                 password = input("Enter password: ")
-                secure_socket.send(encrypt_message(aes_key, b'login'))
-                secure_socket.send(encrypt_message(aes_key, username.encode()))
-                secure_socket.send(encrypt_message(aes_key, password.encode()))
-                response = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+                send_message('login', aes_key, secure_socket)
+                send_message(username, aes_key, secure_socket)
+                send_message(password, aes_key, secure_socket)
+                response = receive_message(aes_key, secure_socket)
                 print(response)
                 if response == 'Authentication successful':
                     while True:
@@ -198,15 +225,15 @@ def start_client():
                         command = input("Enter a command to execute (or 'quit' to logout): ")
                         if command == 'quit':
                             break
-                        secure_socket.send(encrypt_message(aes_key, command.encode()))
-                        response = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+                        send_message(command, aes_key, secure_socket)
+                        response = receive_message(aes_key, secure_socket)
                         if response == 'Command not allowed' or response == 'Please login first':
                             print("The command you entered is not allowed or you are not logged in.")
                         else:
                             print(response)
             elif choice == '0':
                 # Quit the client
-                secure_socket.send(encrypt_message(aes_key, b'quit'))
+                send_message('quit', aes_key, secure_socket)
                 break
     except Exception as e:
         print(f"An error occurred: {e}")
