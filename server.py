@@ -8,12 +8,37 @@ import time
 import platform
 import threading
 from datetime import timedelta
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import hashes, serialization, hmac
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+
+def send_message(message, key, sockety):
+    message = message.encode('utf-8')
+    sockety.send(encrypt_message(key, message))
+    h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    h.update(message)
+    sockety.send(encrypt_message(key, h.finalize()))
+
+def receive_message(key, sockety):
+    response = decrypt_message(key, sockety.recv(1024))
+    response_hash = decrypt_message(key, sockety.recv(1024))
+    h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
+    h.update(response)
+    hash_is_good = True
+    try:
+        h.verify(response_hash)
+    except hmac.InvalidSignature:
+        hash_is_good = False
+
+    if hash_is_good:
+        return response.decode('utf-8')
+    else:
+        print("CLAIRE WARNING")
+        return "CLAIRE WARNING"
+
 
 # Dictionary to store users and their passwords
 users = {}
@@ -196,33 +221,34 @@ def handle_client(secure_socket):
         secure_socket.send(encrypted_aes_key)
         secure_socket.send(signature)
         while True:
-            command = decrypt_message(aes_key, secure_socket.recv(1024))
-            if command == b'quit':
+            command = receive_message(aes_key, secure_socket)
+            if command == 'quit':
                 break
-            elif command == b'register':
-                username = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
-                password = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+            elif command == 'register':
+                username = receive_message(aes_key, secure_socket)
+                password = receive_message(aes_key, secure_socket)
                 message = register_user(username, password)
-                secure_socket.send(encrypt_message(aes_key, message.encode()))
-            elif command == b'login':
-                username = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
-                password = decrypt_message(aes_key, secure_socket.recv(1024)).decode()
+                send_message(message, aes_key, secure_socket)
+            elif command == 'login':
+                username = receive_message(aes_key, secure_socket)
+                password = receive_message(aes_key, secure_socket)
                 # Check if the user exists and if the password is correct
                 if username in users and bcrypt.checkpw(password.encode('utf-8'), users[username]):
-                    secure_socket.send(encrypt_message(aes_key, b'Authentication successful'))
+                    send_message('Authentication successful', aes_key, secure_socket)
                     logged_in = True
                 else:
-                    secure_socket.send(encrypt_message(aes_key, b'Authentication failed'))
+                    send_message('Authentication failed', aes_key, secure_socket)
             elif logged_in:
+                print(command.split())
                 # Check if the command is allowed and the user is logged in
                 if command.split()[0] in allowed_commands:
                     # Execute the command and send the output back to the client
-                    output = execute_command(command.decode())
-                    secure_socket.send(encrypt_message(aes_key, output.encode()))
+                    output = execute_command(command)
+                    send_message(output, aes_key, secure_socket)
                 else:
-                    secure_socket.send(encrypt_message(aes_key, b'Command not allowed'))
+                    send_message('Command not allowed', aes_key, secure_socket)
             else:
-                secure_socket.send(encrypt_message(aes_key, b'Please login first'))
+                send_message('Please login first', aes_key, secure_socket)
     except Exception as e:
         print(f"An error occurred: {e}")
     finally:
@@ -241,6 +267,7 @@ def start_server():
 
     secure_socket.bind(('localhost', 12345))
     secure_socket.listen(5)
+    secure_socket.settimeout(1)
 
     if not os.path.exists("server/private_key.pem") or not os.path.exists("server/public_key.pem"):
         print("Server does not have RSA keys. They are currently being created in ./server")
@@ -249,11 +276,16 @@ def start_server():
     
 
     while True:
-        client_socket, address = secure_socket.accept()
-        print(f"Connection from {address} has been established!")
-        # Start a new thread to handle the client
-        client_thread = threading.Thread(target=handle_client, args=(client_socket,))
-        client_thread.start()
+        try:
+            client_socket, address = secure_socket.accept()
+            print(f"Connection from {address} has been established!")
+            # Start a new thread to handle the client
+            client_thread = threading.Thread(target=handle_client, args=(client_socket,))
+            client_thread.start()
+        except KeyboardInterrupt:
+            print("\nbye bye")
+        except socket.timeout:
+            pass
 
 if __name__ == "__main__":
     start_server()
