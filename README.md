@@ -26,12 +26,12 @@ Em termos de funcionalidades avançadas:
 
 - A autenticação é feita usando mecanismos de autenticação forte; (João Martins)
 
-- O sistema suporta autenticação mútua (cliente e servidor); (João Martins)
+- O sistema suporta autenticação mútua (cliente e servidor); (Fábio)
 
 - O sistema suporta vários mecanismos de troca de chaves, nomeadamente mecanismos da criptografia simétrica (e.g., chaves pré-distribuídas ou derivadas de uma palavra-passe) e assimétrica (e.g., Diffie-Hellman ou RSA); (João Marques)
 
 - Em vez de um mecanismo de autenticação da origem da informação, é implementado um mecanismo de assinatura digital; (João Marques)
 
-- Em vez de RSA, são usadas primitivas da criptografia sobre curvas elípticas;
+- Em vez de RSA, são usadas primitivas da criptografia sobre curvas elípticas (Rui);
 
 - Outras funcionalidades relevantes no contexto da segurança do sistema e que o favoreçam na nota.
