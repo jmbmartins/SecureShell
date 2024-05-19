@@ -8,6 +8,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import bcrypt
 import hashlib
+import getpass  # Import getpass module
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -205,7 +206,7 @@ def start_client():
             if choice == '1':
                 # Register a new user
                 username = input("Enter username to register: ")
-                password = input("Enter password: ")
+                password = getpass.getpass("Enter password: ")  # Use getpass for hidden input
                 send_message('register', aes_key, secure_socket)
                 send_message(username, aes_key, secure_socket)
                 send_message(password, aes_key, secure_socket)
@@ -213,7 +214,7 @@ def start_client():
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
-                password = input("Enter password: ")
+                password = getpass.getpass("Enter password: ")  # Use getpass for hidden input
                 send_message('login', aes_key, secure_socket)
                 send_message(username, aes_key, secure_socket)
                 send_message(password, aes_key, secure_socket)

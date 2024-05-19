@@ -14,6 +14,8 @@ from cryptography.hazmat.primitives.asymmetric.padding import OAEP, MGF1
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -50,8 +52,6 @@ def generate_keys():
     """
     Generate RSA public and private keys.
     """
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import rsa
 
     # Generate RSA key pair
     private_key = rsa.generate_private_key(
@@ -80,6 +80,32 @@ def generate_keys():
     # Write public key to file
     with open("server/public_key.pem", "wb") as public_key_file:
         public_key_file.write(pem_public_key)
+
+#este gera as chaves de criptografia de EC
+def generate_ecc_keys():
+    
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_key = private_key.public_key()
+
+    # Serialize private key to PEM format
+    pem_private_key = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    with open("server/private_key.pem", "wb") as private_key_file:
+        private_key_file.write(pem_private_key)
+
+    # Serialize public key to PEM format
+    pem_public_key = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
+    with open("server/public_key.pem", "wb") as public_key_file:
+        public_key_file.write(pem_public_key)
+
 
 def load_keys():
     """
@@ -127,6 +153,37 @@ def encrypt_with_public_key(public_key, plaintext):
         )
     )
     return ciphertext
+
+def encrypt_with_ec(public_key, plaintext):
+    # Generate ephemeral private key for ECDH
+    ephemeral_private_key = ec.generate_private_key(ec.SECP256R1())
+    shared_key = ephemeral_private_key.exchange(ec.ECDH(), public_key)
+
+    # Derive AES key from shared key using HKDF
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+        backend=default_backend()
+    ).derive(shared_key)
+
+    # Encrypt plaintext with derived AES key
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(derived_key), modes.GCM(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+
+    return iv + encryptor.tag + ciphertext, ephemeral_private_key.public_key()
+
+
+def sign_ecc_with_private_key(private_key, data):
+    signature = private_key.sign(
+        data,
+        ec.ECDSA(hashes.SHA256())
+    )
+    return signature
+
 
 def sign_with_private_key(private_key, data):
     """
@@ -258,6 +315,23 @@ def start_server():
     """
     Starts the server, accepts connections, and starts threads to handle clients.
     """
+
+    ## este bloco é para chamar as funções da ECC 
+
+    """
+    encrypted_aes_key, ephemeral_public_key = encrypt_with_public_key(client_public_key, aes_key)
+    signature = sign_with_private_key(private_key, encrypted_aes_key)
+
+    secure_socket.send(ephemeral_public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    ))
+    secure_socket.send(encrypted_aes_key)
+    secure_socket.send(signature)
+
+    """
+
+
     # Create an SSL context to encrypt the communication
     context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     context.load_cert_chain(certfile="server-cert.pem", keyfile="server-key.pem")
@@ -288,4 +362,4 @@ def start_server():
             pass
 
 if __name__ == "__main__":
-    start_server()
+        ()
