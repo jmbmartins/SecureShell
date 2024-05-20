@@ -10,21 +10,21 @@ Pensem numa forma de atacar o sistema (uma falha da sua implementação) e dediq
 
 Em termos de funcionalidades básicas:
 
-- A autenticação dos clientes no sistema é feita de uma forma segura; (João Martins)
+- A autenticação dos clientes no sistema é feita de uma forma segura; (João Martins) :white_check_mark:
 
-- As comunicações entre os clientes e o servidor são protegidas usando algoritmos de criptografia simétrica de qualidade; (João Marques)
+- As comunicações entre os clientes e o servidor são protegidas usando algoritmos de criptografia simétrica de qualidade; (João Marques) :white_check_mark:
 
-- As chaves de cifra (de sessão) são geradas sempre que se inicia nova sessão e são estabelecidas chaves diferentes para todos os tipos de mecanismos criptográficos; (Rui)
+- As chaves de cifra (de sessão) são geradas sempre que se inicia nova sessão e são estabelecidas chaves diferentes para todos os tipos de mecanismos criptográficos; (Rui) :white_check_mark:
 
-- As mensagens entre clientes e servidor são protegidas com mecanismos de autenticação da origem da informação. (Fábio)
+- As mensagens entre clientes e servidor são protegidas com mecanismos de autenticação da origem da informação. (Fábio) :white_check_mark:
 
 3.3 Funcionalidades Avançadas
 
 Em termos de funcionalidades avançadas:
 
-- O sistema é multi-plataforma (i.e., o mesmo conjunto de aplicações funciona em diferentes sistemas operativos sem muitas modificações/configurações); (João Martins)
+- O sistema é multi-plataforma (i.e., o mesmo conjunto de aplicações funciona em diferentes sistemas operativos sem muitas modificações/configurações); (João Martins) :white_check_mark:
 
-- A autenticação é feita usando mecanismos de autenticação forte; (João Martins)
+- A autenticação é feita usando mecanismos de autenticação forte; (João Martins) :white_check_mark:
 
 - O sistema suporta autenticação mútua (cliente e servidor); (Fábio)
 
