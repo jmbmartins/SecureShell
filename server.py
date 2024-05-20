@@ -17,6 +17,16 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.exceptions import InvalidSignature
+
+
+
+def generate_nonce(length=16):
+    """
+    Generate a random nonce of a given length.
+    """
+    return os.urandom(length)
+
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -186,12 +196,17 @@ def sign_ecc_with_private_key(private_key, data):
     return signature
 
 
-def sign_with_private_key(private_key, data):
+def sign_with_private_key(private_key, message):
     """
-    Signs data using RSA private key.
+    Sign the message with the private key.
     """
+    # Convert the message to bytes if it's not already
+    if not isinstance(message, bytes):
+        message = message.encode()
+
+    # Create a signature of the message
     signature = private_key.sign(
-        data,
+        message,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
             salt_length=padding.PSS.MAX_LENGTH
@@ -199,6 +214,28 @@ def sign_with_private_key(private_key, data):
         hashes.SHA256()
     )
     return signature
+
+def verify_signature(public_key, message, signature):
+    """
+    Verify the signature of the message with the public key.
+    """
+    # Convert the message to bytes if it's not already
+    if not isinstance(message, bytes):
+        message = message.encode()
+
+    try:
+        public_key.verify(
+            signature,
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        return True
+    except InvalidSignature:
+        return False
 
 def register_user(username, password):
     """
@@ -265,19 +302,39 @@ def handle_client(secure_socket):
     
     try:
         private_key, public_key, client_public_key = load_keys()
+        print("Keys loaded successfully.")
         
         # Generate AES-GCM key
         aes_key = generate_aes_key()
+        print("AES-GCM key generated.")
+
+        # Generate nonce
+        nonce = generate_nonce()
+
+        # Send nonce to client
+        secure_socket.send(nonce)
+
+        # Receive signed nonce from client
+        signed_nonce = secure_socket.recv(1024)  # Use recv instead of receive
+
+        # Verify signed nonce
+        if not verify_signature(client_public_key, nonce, signed_nonce):
+            print("Server Signature Authentication Protocol: Invalid signature")
+            return
+        print("Server Signature Authentication Protocol: Signature verified.")
 
         # Encrypt AES-GCM key with client's public key
         encrypted_aes_key = encrypt_with_public_key(client_public_key, aes_key)
+        print("AES-GCM key encrypted with client's public key.")
 
         # Sign AES-GCM key with server's private key
         signature = sign_with_private_key(private_key, encrypted_aes_key)
+        print("AES-GCM key signed with server's private key.")
 
         # Send encrypted AES-GCM key and signature to client
         secure_socket.send(encrypted_aes_key)
         secure_socket.send(signature)
+        print("Encrypted AES-GCM key and signature sent to client.")
         while True:
             command = receive_message(aes_key, secure_socket)
             if command == 'quit':
@@ -308,7 +365,7 @@ def handle_client(secure_socket):
             else:
                 send_message('Please login first', aes_key, secure_socket)
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {type(e).__name__}, {e}")
     finally:
         secure_socket.close()
 
@@ -359,8 +416,9 @@ def start_server():
             client_thread.start()
         except KeyboardInterrupt:
             print("\nbye bye")
+            return;
         except socket.timeout:
             pass
 
 if __name__ == "__main__":
-        ()
+    start_server();

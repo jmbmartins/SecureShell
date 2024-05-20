@@ -9,6 +9,8 @@ from cryptography.hazmat.backends import default_backend
 import bcrypt
 import hashlib
 import getpass  # Import getpass module
+from cryptography.exceptions import InvalidSignature
+
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -145,19 +147,46 @@ def decrypt_with_private_key(key, ciphertext):
     )
     return plaintext
 
-def verify_signature(public_key, signature, data):
+def sign_with_private_key(private_key, message):
     """
-    Verifies a signature using RSA public key.
+    Sign the message with the private key.
     """
-    public_key.verify(
-        signature,
-        data,
+    # Convert the message to bytes if it's not already
+    if not isinstance(message, bytes):
+        message = message.encode()
+
+    # Create a signature of the message
+    signature = private_key.sign(
+        message,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
             salt_length=padding.PSS.MAX_LENGTH
         ),
         hashes.SHA256()
     )
+    return signature
+
+def verify_signature(public_key, message, signature):
+    """
+    Verify the signature of the message with the public key.
+    """
+    # Convert the message to bytes if it's not already
+    if not isinstance(message, bytes):
+        message = message.encode()
+
+    try:
+        public_key.verify(
+            signature,
+            message,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        return True
+    except InvalidSignature:
+        return False
 
 def start_client():
     """
@@ -165,7 +194,6 @@ def start_client():
     """
     secure_socket = None
     try:
-
         if not os.path.exists("client/private_key.pem") or not os.path.exists("client/public_key.pem"):
             print("Client does not have RSA keys. They are currently being created in ./client")
             os.makedirs("client")
@@ -173,6 +201,7 @@ def start_client():
 
         # Load keys
         private_key, public_key, server_public_key = load_keys()
+        print("Keys loaded successfully.")
 
         # Create an SSL context to encrypt the communication
         context = ssl.create_default_context()
@@ -187,16 +216,29 @@ def start_client():
         print("Negotiated Cipher:", secure_socket.cipher())
         print("Negotiated SSL/TLS Protocol:", secure_socket.version())
 
+        # Receive nonce from server
+        nonce = secure_socket.recv(1024)
+
+        # Sign nonce with client's private key
+        signed_nonce = sign_with_private_key(private_key, nonce)
+
+        # Send signed nonce to server
+        secure_socket.send(signed_nonce)
+
         # Receive encrypted AES-GCM key and signature from server
         encrypted_aes_key = secure_socket.recv(1024)
         signature = secure_socket.recv(1024)
+        print("Encrypted AES-GCM key and signature received from server.")
 
         # Verify the signature using the server's public key
-        verify_signature(server_public_key, signature, encrypted_aes_key)
+        if not verify_signature(server_public_key, encrypted_aes_key, signature):
+            print("Client Signature Authentication Protocol: Invalid signature.")
+            return
+        print("Client Signature Authentication Protocol: Signature verified.")
 
         # Decrypt the AES-GCM key using the client's private key
         aes_key = decrypt_with_private_key(private_key, encrypted_aes_key)
-        print("Here")
+        print("AES-GCM key decrypted with client's private key.")
 
         while True:
             print("1. Register")
@@ -237,7 +279,7 @@ def start_client():
                 send_message('quit', aes_key, secure_socket)
                 break
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred: {type(e).__name__}, {e}")
     finally:
         if secure_socket is not None:
             secure_socket.close()
