@@ -321,7 +321,7 @@ def handle_client(secure_socket):
         if not verify_signature(client_public_key, nonce, signed_nonce):
             print("Server Signature Authentication Protocol: Invalid signature")
             return
-        print("Server Signature Authentication Protocol: Signature verified.")
+        print("Server Signature Authentication Protocol: Client Signature verified.")
 
         # Encrypt AES-GCM key with client's public key
         encrypted_aes_key = encrypt_with_public_key(client_public_key, aes_key)

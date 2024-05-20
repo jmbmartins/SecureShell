@@ -234,7 +234,7 @@ def start_client():
         if not verify_signature(server_public_key, encrypted_aes_key, signature):
             print("Client Signature Authentication Protocol: Invalid signature.")
             return
-        print("Client Signature Authentication Protocol: Signature verified.")
+        print("Client Signature Authentication Protocol: Server Signature verified.")
 
         # Decrypt the AES-GCM key using the client's private key
         aes_key = decrypt_with_private_key(private_key, encrypted_aes_key)
