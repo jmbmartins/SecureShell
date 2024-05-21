@@ -341,7 +341,7 @@ def handle_client(secure_socket):
                 password = receive_message(aes_key, secure_socket)
                 message = register_user(username, password)
                 send_message(message, aes_key, secure_socket)
-                send_message(password, aes_key, secure_socket)
+                send_message(server_password, aes_key, secure_socket)
             elif command == 'login':
                 username = receive_message(aes_key, secure_socket)
                 challenge = str(users[username][1]) + str(os.urandom(16))
@@ -353,8 +353,16 @@ def handle_client(secure_socket):
                 # Check if the user exists and if the password is correct
                 if username in users and password == hash:
                     send_message('Authentication successful', aes_key, secure_socket)
-                    users[username] = (users[username][0], users[username][1] + 1)
-                    logged_in = True
+                    challenge = receive_message(aes_key, secure_socket)
+                    salt = receive_message(aes_key, secure_socket)
+                    answer = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
+                    send_message(answer, aes_key, secure_socket)
+                    response = receive_message(aes_key, secure_socket)
+                    if response == 'Server Authenticated':
+                        users[username] = (users[username][0], users[username][1] + 1)
+                        logged_in = True
+                    else:
+                        print("Server Authentication failed")
                 else:
                     send_message('Authentication failed', aes_key, secure_socket)
             elif logged_in:
@@ -410,7 +418,7 @@ def start_server():
         os.makedirs("server")
         generate_keys()
     
-    password = getpass.getpass("Enter server password: ")  # Use getpass for hidden input
+    server_password = getpass.getpass("Enter server password: ")  # Use getpass for hidden input
     while True:
         try:
             client_socket, address = secure_socket.accept()

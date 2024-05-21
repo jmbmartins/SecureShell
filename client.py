@@ -239,6 +239,7 @@ def start_client():
         print("AES-GCM key decrypted with client's private key.")
 
         server_password = ""
+        id = 0
         while True:
             print("1. Register")
             print("2. Login")
@@ -266,17 +267,29 @@ def start_client():
                 response = receive_message(aes_key, secure_socket)
                 print(response)
                 if response == 'Authentication successful':
-                    while True:
-                        # Execute a command
-                        command = input("Enter a command to execute (or 'quit' to logout): ")
-                        if command == 'quit':
-                            break
-                        send_message(command, aes_key, secure_socket)
-                        response = receive_message(aes_key, secure_socket)
-                        if response == 'Command not allowed' or response == 'Please login first':
-                            print("The command you entered is not allowed or you are not logged in.")
-                        else:
-                            print(response)
+                    challenge = str(id) + str(os.urandom(16))
+                    salt = bcrypt.gensalt()
+                    send_message(challenge, aes_key, secure_socket)
+                    send_message(salt, aes_key, secure_socket)
+                    password = receive_message(aes_key, secure_socket)
+                    hash = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
+                    if hash == password:
+                        print("Server authenticated")
+                        id += 1
+                        send_message('Server Authenticated', aes_key, secure_socket)
+                        while True:
+                            # Execute a command
+                            command = input("Enter a command to execute (or 'quit' to logout): ")
+                            if command == 'quit':
+                                break
+                            send_message(command, aes_key, secure_socket)
+                            response = receive_message(aes_key, secure_socket)
+                            if response == 'Command not allowed' or response == 'Please login first':
+                                print("The command you entered is not allowed or you are not logged in.")
+                            else:
+                                print(response)
+                    else:
+                        print("Server not authenticated")
             elif choice == '0':
                 # Quit the client
                 send_message('quit', aes_key, secure_socket)
