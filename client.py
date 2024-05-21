@@ -11,7 +11,6 @@ import hashlib
 import getpass  # Import getpass module
 from cryptography.exceptions import InvalidSignature
 
-
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
     sockety.send(encrypt_message(key, message))
@@ -35,7 +34,6 @@ def receive_message(key, sockety):
     else:
         print("CLAIRE WARNING")
         return "CLAIRE WARNING"
-
 
 def generate_keys():
     """
@@ -240,6 +238,7 @@ def start_client():
         aes_key = decrypt_with_private_key(private_key, encrypted_aes_key)
         print("AES-GCM key decrypted with client's private key.")
 
+        server_password = ""
         while True:
             print("1. Register")
             print("2. Login")
@@ -253,13 +252,17 @@ def start_client():
                 send_message(username, aes_key, secure_socket)
                 send_message(password, aes_key, secure_socket)
                 print(receive_message(aes_key, secure_socket))
+                server_password = receive_message(aes_key, secure_socket)
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
                 password = getpass.getpass("Enter password: ")  # Use getpass for hidden input
                 send_message('login', aes_key, secure_socket)
                 send_message(username, aes_key, secure_socket)
-                send_message(password, aes_key, secure_socket)
+                challenge = receive_message(aes_key, secure_socket)
+                salt = receive_message(aes_key, secure_socket)
+                answer = bcrypt.hashpw((challenge+password).encode('utf-8'), salt.encode('utf-8'))
+                send_message(answer, aes_key, secure_socket)
                 response = receive_message(aes_key, secure_socket)
                 print(response)
                 if response == 'Authentication successful':

@@ -19,14 +19,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
 
-
+server_password = "password"
 
 def generate_nonce(length=16):
     """
     Generate a random nonce of a given length.
     """
     return os.urandom(length)
-
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -52,12 +51,11 @@ def receive_message(key, sockety):
         print("CLAIRE WARNING")
         return "CLAIRE WARNING"
 
-
 # Dictionary to store users and their passwords
 users = {}
 
 # List of allowed commands that users can execute
-allowed_commands = ['ls', 'pwd', 'whoami', 'date', 'uptime']
+allowed_commands = ['help', 'ls', 'pwd', 'whoami', 'date', 'uptime']
 
 def generate_keys():
     """
@@ -116,7 +114,6 @@ def generate_ecc_keys():
 
     with open("server/public_key.pem", "wb") as public_key_file:
         public_key_file.write(pem_public_key)
-
 
 def load_keys():
     """
@@ -187,14 +184,12 @@ def encrypt_with_ec(public_key, plaintext):
 
     return iv + encryptor.tag + ciphertext, ephemeral_private_key.public_key()
 
-
 def sign_ecc_with_private_key(private_key, data):
     signature = private_key.sign(
         data,
         ec.ECDSA(hashes.SHA256())
     )
     return signature
-
 
 def sign_with_private_key(private_key, message):
     """
@@ -245,8 +240,8 @@ def register_user(username, password):
     if username in users:
         return 'Username already exists'
     else:
-        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-        users[username] = hashed_password
+        #hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        users[username] = (password, 0)
         return 'Registration successful'
 
 def execute_command(command):
@@ -270,6 +265,8 @@ def execute_command(command):
                 uptime_seconds = float(f.readline().split()[0])
                 uptime_string = str(timedelta(seconds = uptime_seconds))
                 return uptime_string
+    elif command == 'help':
+        return 'Available commands:' + allowed_commands
     else:
         return 'Command not allowed'
 
@@ -344,12 +341,19 @@ def handle_client(secure_socket):
                 password = receive_message(aes_key, secure_socket)
                 message = register_user(username, password)
                 send_message(message, aes_key, secure_socket)
+                send_message(password, aes_key, secure_socket)
             elif command == 'login':
                 username = receive_message(aes_key, secure_socket)
+                challenge = str(users[username][1]) + str(os.urandom(16))
+                salt = bcrypt.gensalt()
+                send_message(challenge, aes_key, secure_socket)
+                send_message(salt, aes_key, secure_socket)
                 password = receive_message(aes_key, secure_socket)
+                hash = bcrypt.hashpw((challenge+users[username][0]).encode('utf-8'), salt.encode('utf-8'))
                 # Check if the user exists and if the password is correct
-                if username in users and bcrypt.checkpw(password.encode('utf-8'), users[username]):
+                if username in users and password == hash:
                     send_message('Authentication successful', aes_key, secure_socket)
+                    users[username] = (users[username][0], users[username][1] + 1)
                     logged_in = True
                 else:
                     send_message('Authentication failed', aes_key, secure_socket)
@@ -406,7 +410,7 @@ def start_server():
         os.makedirs("server")
         generate_keys()
     
-
+    password = getpass.getpass("Enter server password: ")  # Use getpass for hidden input
     while True:
         try:
             client_socket, address = secure_socket.accept()
