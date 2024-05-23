@@ -18,6 +18,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
+import pickle
+import hashlib
 
 server_password = "password"
 
@@ -28,6 +30,9 @@ def generate_nonce(length=16):
     return os.urandom(length)
 
 def send_message(message, key, sockety):
+    """
+    Send a message to the socket, encrypted with the key, and then send a hash of the message.
+    """
     message = message.encode('utf-8')
     sockety.send(encrypt_message(key, message))
     h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
@@ -35,6 +40,9 @@ def send_message(message, key, sockety):
     sockety.send(encrypt_message(key, h.finalize()))
 
 def receive_message(key, sockety):
+    """
+    Receive a message sent from send_message, decrypt it, and verify the hash.
+    """
     response = decrypt_message(key, sockety.recv(1024))
     response_hash = decrypt_message(key, sockety.recv(1024))
     h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
@@ -242,6 +250,8 @@ def register_user(username, password):
     else:
         #hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         users[username] = (password, 0)
+        with open(hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'wb') as f:
+            pickle.dump(users, f)
         return 'Registration successful'
 
 def execute_command(command):
@@ -418,7 +428,13 @@ def start_server():
         os.makedirs("server")
         generate_keys()
     
+    global server_password, users
     server_password = getpass.getpass("Enter server password: ")  # Use getpass for hidden input
+    try:
+        with open(hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'rb') as f:
+            users = pickle.load(f)
+    except FileNotFoundError:
+        pass
     while True:
         try:
             client_socket, address = secure_socket.accept()
