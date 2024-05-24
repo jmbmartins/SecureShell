@@ -1,4 +1,4 @@
-Para correr o programa seguir estes passsos:
+## Para correr o programa seguir estes passsos:
 
 Correr o servidor e definir uma palavra passe para 
 
