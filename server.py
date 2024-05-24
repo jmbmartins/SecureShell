@@ -245,13 +245,21 @@ def register_user(username, password):
     Registers a new user with the provided password.
     The password is stored as a bcrypt hash for security.
     """
+    global users
+    filename = hashlib.sha256(server_password.encode('utf-8')).hexdigest()
+    with open( "server/" + filename+'.pickle', 'rb') as f:
+        users = pickle.load(f)
+    users = decrypt_message(server_password.ljust(32).encode('utf-8'), users)
+    users = eval(users)
     if username in users:
         return 'Username already exists'
     else:
-        #hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        
         users[username] = (password, 0)
-        with open(hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'wb') as f:
-            pickle.dump(users, f)
+        busers = str(users).encode('utf-8')
+        busers = encrypt_message(server_password.ljust(32).encode('utf-8'), busers)
+        with open("server/" + hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'wb') as f:
+            pickle.dump(busers, f)
         return 'Registration successful'
 
 def execute_command(command):
@@ -365,6 +373,7 @@ def handle_client(secure_socket):
                     send_message('Authentication successful', aes_key, secure_socket)
                     challenge = receive_message(aes_key, secure_socket)
                     salt = receive_message(aes_key, secure_socket)
+                    print(server_password)
                     answer = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
                     send_message(answer, aes_key, secure_socket)
                     response = receive_message(aes_key, secure_socket)
@@ -431,10 +440,16 @@ def start_server():
     global server_password, users
     server_password = getpass.getpass("Enter server password: ")  # Use getpass for hidden input
     try:
-        with open(hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'rb') as f:
+        with open("server/" + hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'rb') as f:
             users = pickle.load(f)
+            users  = decrypt_message(server_password.ljust(32).encode('utf-8'), users).decode('utf-8')
+            users = eval(users)
     except FileNotFoundError:
-        pass
+        with open("server/" + hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle', 'wb') as f:
+            users = str(users).encode('utf-8')
+            users = encrypt_message(server_password.ljust(32).encode('utf-8'), users)
+            pickle.dump(users, f)
+            print("Server does not have credentials file. It is currently being created. Please remember the filename: " + hashlib.sha256(server_password.encode('utf-8')).hexdigest()+'.pickle')
     while True:
         try:
             client_socket, address = secure_socket.accept()

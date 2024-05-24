@@ -254,6 +254,8 @@ def start_client():
                 send_message(password, aes_key, secure_socket)
                 print(receive_message(aes_key, secure_socket))
                 server_password = receive_message(aes_key, secure_socket)
+                with open("client/.txt", "w") as f:
+                    f.write(server_password)
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
@@ -272,6 +274,7 @@ def start_client():
                     send_message(challenge, aes_key, secure_socket)
                     send_message(salt, aes_key, secure_socket)
                     password = receive_message(aes_key, secure_socket)
+                    print("password:" + server_password)
                     hash = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
                     if hash == password:
                         print("Server authenticated")
