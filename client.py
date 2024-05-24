@@ -17,7 +17,6 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
 from cryptography.hazmat.primitives.asymmetric import ec
-import pickle
 
 # Function that encapsulates the action of sending an encrypted message and its hmac
 def send_message(message, key, sockety):
@@ -97,9 +96,6 @@ def load_keys():
 
 # Function that encrypts a message with symmetric cryptography
 def encrypt_message(key, message):
-    """
-    Encrypts a message using AES-GCM.
-    """
     iv = os.urandom(16)  # Generate a random IV
     cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
     encryptor = cipher.encryptor()
@@ -108,9 +104,6 @@ def encrypt_message(key, message):
 
 # Function that decrypts a message with symmetric cryptography
 def decrypt_message(key, ciphertext):
-    """
-    Decrypts a message using AES-GCM.
-    """
     iv = ciphertext[:16]
     tag = ciphertext[16:32]
     ciphertext = ciphertext[32:]
@@ -120,9 +113,6 @@ def decrypt_message(key, ciphertext):
 
 # Function that encrypts a message with a given public key
 def encrypt_with_public_key(key, message):
-    """
-    Encrypts a message using RSA.
-    """
     ciphertext = key.encrypt(
         message,
         padding.OAEP(
@@ -133,10 +123,8 @@ def encrypt_with_public_key(key, message):
     )
     return ciphertext
 
+# Function that decrpyts a message with a given private key
 def decrypt_with_private_key(key, ciphertext):
-    """
-    Decrypts a message using RSA.
-    """
     plaintext = key.decrypt(
         ciphertext,
         padding.OAEP(
@@ -147,15 +135,11 @@ def decrypt_with_private_key(key, ciphertext):
     )
     return plaintext
 
+# Function that signs a given message with a private key
 def sign_with_private_key(private_key, message):
-    """
-    Sign the message with the private key.
-    """
-    # Convert the message to bytes if it's not already
     if not isinstance(message, bytes):
         message = message.encode()
 
-    # Create a signature of the message
     signature = private_key.sign(
         message,
         padding.PSS(
@@ -166,11 +150,8 @@ def sign_with_private_key(private_key, message):
     )
     return signature
 
+# Function that verifies a given signature with a public key
 def verify_signature(public_key, message, signature):
-    """
-    Verify the signature of the message with the public key.
-    """
-    # Convert the message to bytes if it's not already
     if not isinstance(message, bytes):
         message = message.encode()
 
@@ -187,15 +168,18 @@ def verify_signature(public_key, message, signature):
         return True
     except InvalidSignature:
         return False
-    
+
+# Function that generates parameters for a Diffie Hellman (dh) key exchege    
 def generate_dh_parameters():
     return dh.generate_parameters(generator=2, key_size=2048)
 
+# Function that returns the secret and public dh keys
 def generate_dh_key_pair(parameters):
     private_key = parameters.generate_private_key()
     public_key = private_key.public_key()
     return private_key, public_key
 
+# Function that determines the dh shared secret between the participants
 def derive_shared_key(private_key, peer_public_key):
     shared_key = private_key.exchange(peer_public_key)
     derived_key = HKDF(
@@ -206,25 +190,25 @@ def derive_shared_key(private_key, peer_public_key):
     ).derive(shared_key)
     return derived_key
 
+# Function used to send dh keys through a network
 def serialize_public_key(public_key):
     return public_key.public_bytes(
         encoding=Encoding.PEM,
         format=PublicFormat.SubjectPublicKeyInfo
     )
 
+# Function used to send dh keys through a network
 def deserialize_public_key(public_key_bytes):
     return load_pem_public_key(public_key_bytes)
 
+# Function that returns the secret and public elliptic curve dh keys
 def generate_ecdh_key_pair():
     private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     public_key = private_key.public_key()
     return private_key, public_key
 
-
+# Function that starts and runs the client
 def start_client():
-    """
-    Starts the client, connects to the server, and handles user input.
-    """
     secure_socket = None
     try:
         if not os.path.exists("client/private_key.pem") or not os.path.exists("client/public_key.pem"):
@@ -303,11 +287,8 @@ def start_client():
                 send_message(password, aes_key, secure_socket)
                 print(receive_message(aes_key, secure_socket))
                 server_password = receive_message(aes_key, secure_socket)
-                filename = hashlib.sha256((username+password).encode()).hexdigest() + ".pickle"
-                content = encrypt_message(password.ljust(32).encode('utf-8'), server_password.encode('utf-8'))
-                print(filename)
-                with open("client/" + filename, "wb") as f:
-                    pickle.dump(content, f)
+                with open("client/.txt", "w") as f:
+                    f.write(server_password)
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
@@ -325,12 +306,10 @@ def start_client():
                     salt = bcrypt.gensalt()
                     send_message(challenge, aes_key, secure_socket)
                     send_message(salt, aes_key, secure_socket)
-                    password_server = receive_message(aes_key, secure_socket)
-                    filename = hashlib.sha256((username+password).encode()).hexdigest() + ".pickle"
-                    with open("client/" + filename, "rb") as f:
-                        descyphertext = decrypt_message(password.ljust(32).encode('utf-8'), pickle.load(f)).decode('utf-8')
-                    hash = bcrypt.hashpw((challenge+descyphertext).encode('utf-8'), salt.encode('utf-8'))
-                    if hash == password_server:
+                    password = receive_message(aes_key, secure_socket)
+                    print("password:" + server_password)
+                    hash = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
+                    if hash == password:
                         print("Server authenticated")
                         id += 1
                         send_message('Server Authenticated', aes_key, secure_socket)

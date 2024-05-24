@@ -27,26 +27,20 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key, l
 
 server_password = "password"
 
+# Function that generates a nonce
 def generate_nonce(length=16):
-    """
-    Generate a random nonce of a given length.
-    """
     return os.urandom(length)
 
+# Function that encapsulates the action of sending an encrypted message and its hmac
 def send_message(message, key, sockety):
-    """
-    Send a message to the socket, encrypted with the key, and then send a hash of the message.
-    """
     message = message.encode('utf-8')
     sockety.send(encrypt_message(key, message))
     h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
     h.update(message)
     sockety.send(encrypt_message(key, h.finalize()))
 
+# Function that encapsulates the action of receiving an encrypted message and its hmac, while verifying it
 def receive_message(key, sockety):
-    """
-    Receive a message sent from send_message, decrypt it, and verify the hash.
-    """
     response = decrypt_message(key, sockety.recv(1024))
     response_hash = decrypt_message(key, sockety.recv(1024))
     h = hmac.HMAC(key, hashes.SHA256(), backend=default_backend())
@@ -69,56 +63,23 @@ users = {}
 # List of allowed commands that users can execute
 allowed_commands = ['help', 'ls', 'pwd', 'whoami', 'date', 'uptime']
 
+# Function that generates and saves a pair of RSA keys in memory
 def generate_keys():
-    """
-    Generate RSA public and private keys.
-    """
-
-    # Generate RSA key pair
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048
     )
 
-    # Serialize private key to PEM format
     pem_private_key = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.TraditionalOpenSSL,
         encryption_algorithm=serialization.NoEncryption()
     )
 
-    # Write private key to file
     with open("server/private_key.pem", "wb") as private_key_file:
         private_key_file.write(pem_private_key)
 
-    # Extract public key from private key and serialize to PEM format
     public_key = private_key.public_key()
-    pem_public_key = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-
-    # Write public key to file
-    with open("server/public_key.pem", "wb") as public_key_file:
-        public_key_file.write(pem_public_key)
-
-#este gera as chaves de criptografia de EC
-def generate_ecc_keys():
-    
-    private_key = ec.generate_private_key(ec.SECP256R1())
-    public_key = private_key.public_key()
-
-    # Serialize private key to PEM format
-    pem_private_key = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    )
-
-    with open("server/private_key.pem", "wb") as private_key_file:
-        private_key_file.write(pem_private_key)
-
-    # Serialize public key to PEM format
     pem_public_key = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -127,26 +88,21 @@ def generate_ecc_keys():
     with open("server/public_key.pem", "wb") as public_key_file:
         public_key_file.write(pem_public_key)
 
+# Function that loads the client's RSA keys from persistent memory
 def load_keys():
-    """
-    Load RSA public and private keys from files.
-    """
     from cryptography.hazmat.primitives import serialization
 
-    # Load private key
     with open("server/private_key.pem", "rb") as private_key_file:
         private_key = serialization.load_pem_private_key(
             private_key_file.read(),
             password=None
         )
 
-    # Load public key
     with open("server/public_key.pem", "rb") as public_key_file:
         public_key = serialization.load_pem_public_key(
             public_key_file.read()
         )
     
-    # Load public key
     with open("client/public_key.pem", "rb") as public_key_file:
         client_public_key = serialization.load_pem_public_key(
             public_key_file.read()
@@ -154,16 +110,12 @@ def load_keys():
 
     return private_key, public_key, client_public_key
 
+# Function that generates a random AES-GCM key
 def generate_aes_key():
-    """
-    Generate a symmetric AES-GCM key.
-    """
     return os.urandom(32)  # 256-bit key for AES-GCM
 
+# Function that encrypts a message with a given public key
 def encrypt_with_public_key(public_key, plaintext):
-    """
-    Encrypts data using RSA public key.
-    """
     ciphertext = public_key.encrypt(
         plaintext,
         padding.OAEP(
@@ -174,15 +126,11 @@ def encrypt_with_public_key(public_key, plaintext):
     )
     return ciphertext
 
+# Function that signs a given message with a private key
 def sign_with_private_key(private_key, message):
-    """
-    Sign the message with the private key.
-    """
-    # Convert the message to bytes if it's not already
     if not isinstance(message, bytes):
         message = message.encode()
 
-    # Create a signature of the message
     signature = private_key.sign(
         message,
         padding.PSS(
@@ -193,11 +141,8 @@ def sign_with_private_key(private_key, message):
     )
     return signature
 
+# Function that verifies a given signature with a public key
 def verify_signature(public_key, message, signature):
-    """
-    Verify the signature of the message with the public key.
-    """
-    # Convert the message to bytes if it's not already
     if not isinstance(message, bytes):
         message = message.encode()
 
@@ -215,11 +160,8 @@ def verify_signature(public_key, message, signature):
     except InvalidSignature:
         return False
 
+# Function that registers a user
 def register_user(username, password):
-    """
-    Registers a new user with the provided password.
-    The password is stored as a bcrypt hash for security.
-    """
     global users
     filename = hashlib.sha256(server_password.encode('utf-8')).hexdigest()
     with open( "server/" + filename+'.pickle', 'rb') as f:
@@ -237,11 +179,8 @@ def register_user(username, password):
             pickle.dump(busers, f)
         return 'Registration successful'
 
+# Function that executes a given command
 def execute_command(command):
-    """
-    Executes a command and returns the output.
-    This function is platform-independent.
-    """
     if command == 'ls':
         return '\n'.join(os.listdir('.'))
     elif command == 'pwd':
@@ -263,20 +202,16 @@ def execute_command(command):
     else:
         return 'Command not allowed'
 
+# Function that encrypts a message with symmetric cryptography
 def encrypt_message(key, message):
-    """
-    Encrypts a message using AES-GCM.
-    """
-    iv = os.urandom(16)  # Generate a random IV
+    iv = os.urandom(16) 
     cipher = Cipher(algorithms.AES(key), modes.GCM(iv), backend=default_backend())
     encryptor = cipher.encryptor()
     ciphertext = encryptor.update(message) + encryptor.finalize()
     return iv + encryptor.tag + ciphertext
 
+# Function that decrypts a message with symmetric cryptography
 def decrypt_message(key, ciphertext):
-    """
-    Decrypts a message using AES-GCM.
-    """
     iv = ciphertext[:16]
     tag = ciphertext[16:32]
     ciphertext = ciphertext[32:]
@@ -284,9 +219,11 @@ def decrypt_message(key, ciphertext):
     decryptor = cipher.decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
 
+# Function that generates parameters for a Diffie Hellman (dh) key exchege    
 def generate_dh_parameters():
     return dh.generate_parameters(generator=2, key_size=2048)
 
+# Function that returns the secret and public dh keys
 def generate_dh_key_pair(parameters):
     private_key = parameters.generate_private_key()
     public_key = private_key.public_key()
@@ -302,24 +239,25 @@ def derive_shared_key(private_key, peer_public_key):
     ).derive(shared_key)
     return derived_key
 
+# Function that determines the dh shared secret between the participants
 def serialize_public_key(public_key):
     return public_key.public_bytes(
         encoding=Encoding.PEM,
         format=PublicFormat.SubjectPublicKeyInfo
     )
 
+# Function used to send dh keys through a network
 def deserialize_public_key(public_key_bytes):
     return load_pem_public_key(public_key_bytes)
 
+# Function that returns the secret and public elliptic curve dh keys
 def generate_ecdh_key_pair():
     private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     public_key = private_key.public_key()
     return private_key, public_key
 
+# Function that handles a given client
 def handle_client(secure_socket, ):
-    """
-    Handles client requests. This includes registration, login, and command execution.
-    """
     logged_in = False
     
     try:
@@ -395,6 +333,7 @@ def handle_client(secure_socket, ):
                     send_message('Authentication successful', aes_key, secure_socket)
                     challenge = receive_message(aes_key, secure_socket)
                     salt = receive_message(aes_key, secure_socket)
+                    print(server_password)
                     answer = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
                     send_message(answer, aes_key, secure_socket)
                     response = receive_message(aes_key, secure_socket)
@@ -421,6 +360,7 @@ def handle_client(secure_socket, ):
     finally:
         secure_socket.close()
 
+# Function that starts the server
 def start_server():
     """
     Starts the server, accepts connections, and starts threads to handle clients.
