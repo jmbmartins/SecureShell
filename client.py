@@ -1,4 +1,6 @@
-#client.py
+# Client.py
+
+# Imports
 import socket
 import ssl
 import os
@@ -8,7 +10,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 import bcrypt
 import hashlib
-import getpass  # Import getpass module
+import getpass
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
@@ -16,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
 from cryptography.hazmat.primitives.asymmetric import ec
 
+# Function that encapsulates the action of sending an encrypted message and its hmac
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
     sockety.send(encrypt_message(key, message))
@@ -23,6 +26,7 @@ def send_message(message, key, sockety):
     h.update(message)
     sockety.send(encrypt_message(key, h.finalize()))
 
+# Function that encapsulates the action of receiving an encrypted message and its hmac, while verifying it
 def receive_message(key, sockety):
     response = decrypt_message(key, sockety.recv(1024))
     response_hash = decrypt_message(key, sockety.recv(1024))
@@ -40,48 +44,38 @@ def receive_message(key, sockety):
         print("CLAIRE WARNING")
         return "CLAIRE WARNING"
 
+# Function that generates and saves a pair of RSA keys in memory
 def generate_keys():
-    """
-    Generate RSA public and private keys.
-    """
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
 
-    # Generate RSA key pair
     private_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048
     )
 
-    # Serialize private key to PEM format
     pem_private_key = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.TraditionalOpenSSL,
         encryption_algorithm=serialization.NoEncryption()
     )
 
-    # Write private key to file
     with open("client/private_key.pem", "wb") as private_key_file:
         private_key_file.write(pem_private_key)
 
-    # Extract public key from private key and serialize to PEM format
     public_key = private_key.public_key()
     pem_public_key = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
     )
 
-    # Write public key to file
     with open("client/public_key.pem", "wb") as public_key_file:
         public_key_file.write(pem_public_key)
 
+# Fun
 def load_keys():
-    """
-    Load RSA public and private keys from files.
-    """
     from cryptography.hazmat.primitives import serialization
 
-    # Load private key
     with open("client/private_key.pem", "rb") as private_key_file:
         private_key = serialization.load_pem_private_key(
             private_key_file.read(),
@@ -218,11 +212,8 @@ def serialize_public_key(public_key):
 def deserialize_public_key(public_key_bytes):
     return load_pem_public_key(public_key_bytes)
 
-def generate_ecdh_parameters():
-    return ec.generate_parameters(ec.SECP256R1())
-
-def generate_ecdh_key_pair(parameters):
-    private_key = parameters.generate_private_key()
+def generate_ecdh_key_pair():
+    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     public_key = private_key.public_key()
     return private_key, public_key
 
@@ -279,18 +270,16 @@ def start_client():
         aes_key = decrypt_with_private_key(private_key, encrypted_aes_key)
         print("AES-GCM key decrypted with client's private key.")
 
-        dh_params = generate_dh_parameters()
-        ecdh_params = generate_ecdh_parameters()
-
         dh = False
         dh_ec = False
         if(dh):
+            dh_params = generate_dh_parameters()
             dh_sk, dh_pk = generate_dh_key_pair(dh_params)
             secure_socket.send(serialize_public_key(dh_pk))
             client_dh_pk = deserialize_public_key(secure_socket.recv(1024))
             aes_key = derive_shared_key(dh_sk, client_dh_pk)
         if(dh_ec):
-            ecdh_sk, ecdh_pk = generate_ecdh_key_pair(ecdh_params)
+            ecdh_sk, ecdh_pk = generate_ecdh_key_pair()
             secure_socket.send(serialize_public_key(ecdh_pk))
             ecclient_dh_pk = deserialize_public_key(secure_socket.recv(1024))
             aes_key = derive_shared_key(ecdh_sk, ecclient_dh_pk)
