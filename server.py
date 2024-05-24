@@ -395,7 +395,6 @@ def handle_client(secure_socket, ):
                     send_message('Authentication successful', aes_key, secure_socket)
                     challenge = receive_message(aes_key, secure_socket)
                     salt = receive_message(aes_key, secure_socket)
-                    print(server_password)
                     answer = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
                     send_message(answer, aes_key, secure_socket)
                     response = receive_message(aes_key, secure_socket)

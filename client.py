@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
 from cryptography.hazmat.primitives.asymmetric import ec
+import pickle
 
 # Function that encapsulates the action of sending an encrypted message and its hmac
 def send_message(message, key, sockety):
@@ -302,8 +303,11 @@ def start_client():
                 send_message(password, aes_key, secure_socket)
                 print(receive_message(aes_key, secure_socket))
                 server_password = receive_message(aes_key, secure_socket)
-                with open("client/.txt", "w") as f:
-                    f.write(server_password)
+                filename = hashlib.sha256((username+password).encode()).hexdigest() + ".pickle"
+                content = encrypt_message(password.ljust(32).encode('utf-8'), server_password.encode('utf-8'))
+                print(filename)
+                with open("client/" + filename, "wb") as f:
+                    pickle.dump(content, f)
             elif choice == '2':
                 # Login with an existing user
                 username = input("Enter username to login: ")
@@ -321,10 +325,12 @@ def start_client():
                     salt = bcrypt.gensalt()
                     send_message(challenge, aes_key, secure_socket)
                     send_message(salt, aes_key, secure_socket)
-                    password = receive_message(aes_key, secure_socket)
-                    print("password:" + server_password)
-                    hash = bcrypt.hashpw((challenge+server_password).encode('utf-8'), salt.encode('utf-8'))
-                    if hash == password:
+                    password_server = receive_message(aes_key, secure_socket)
+                    filename = hashlib.sha256((username+password).encode()).hexdigest() + ".pickle"
+                    with open("client/" + filename, "rb") as f:
+                        descyphertext = decrypt_message(password.ljust(32).encode('utf-8'), pickle.load(f)).decode('utf-8')
+                    hash = bcrypt.hashpw((challenge+descyphertext).encode('utf-8'), salt.encode('utf-8'))
+                    if hash == password_server:
                         print("Server authenticated")
                         id += 1
                         send_message('Server Authenticated', aes_key, secure_socket)
