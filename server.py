@@ -20,6 +20,10 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.exceptions import InvalidSignature
 import pickle
 import hashlib
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import dh
+from cryptography.hazmat.primitives.serialization import load_pem_private_key, load_pem_public_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
 
 server_password = "password"
 
@@ -170,35 +174,6 @@ def encrypt_with_public_key(public_key, plaintext):
     )
     return ciphertext
 
-def encrypt_with_ec(public_key, plaintext):
-    # Generate ephemeral private key for ECDH
-    ephemeral_private_key = ec.generate_private_key(ec.SECP256R1())
-    shared_key = ephemeral_private_key.exchange(ec.ECDH(), public_key)
-
-    # Derive AES key from shared key using HKDF
-    derived_key = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=None,
-        info=b'handshake data',
-        backend=default_backend()
-    ).derive(shared_key)
-
-    # Encrypt plaintext with derived AES key
-    iv = os.urandom(16)
-    cipher = Cipher(algorithms.AES(derived_key), modes.GCM(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-
-    return iv + encryptor.tag + ciphertext, ephemeral_private_key.public_key()
-
-def sign_ecc_with_private_key(private_key, data):
-    signature = private_key.sign(
-        data,
-        ec.ECDSA(hashes.SHA256())
-    )
-    return signature
-
 def sign_with_private_key(private_key, message):
     """
     Sign the message with the private key.
@@ -309,7 +284,42 @@ def decrypt_message(key, ciphertext):
     decryptor = cipher.decryptor()
     return decryptor.update(ciphertext) + decryptor.finalize()
 
-def handle_client(secure_socket):
+def generate_dh_parameters():
+    return dh.generate_parameters(generator=2, key_size=2048)
+
+def generate_dh_key_pair(parameters):
+    private_key = parameters.generate_private_key()
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+def derive_shared_key(private_key, peer_public_key):
+    shared_key = private_key.exchange(peer_public_key)
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+    ).derive(shared_key)
+    return derived_key
+
+def serialize_public_key(public_key):
+    return public_key.public_bytes(
+        encoding=Encoding.PEM,
+        format=PublicFormat.SubjectPublicKeyInfo
+    )
+
+def deserialize_public_key(public_key_bytes):
+    return load_pem_public_key(public_key_bytes)
+
+def generate_ecdh_parameters():
+    return ec.generate_parameters(ec.SECP256R1())
+
+def generate_ecdh_key_pair(parameters):
+    private_key = parameters.generate_private_key()
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+def handle_client(secure_socket, dh_params, ecdh_params):
     """
     Handles client requests. This includes registration, login, and command execution.
     """
@@ -350,6 +360,20 @@ def handle_client(secure_socket):
         secure_socket.send(encrypted_aes_key)
         secure_socket.send(signature)
         print("Encrypted AES-GCM key and signature sent to client.")
+
+        dh = False
+        dh_ec = False
+        if(dh):
+            dh_sk, dh_pk = generate_dh_key_pair(dh_params)
+            secure_socket.send(serialize_public_key(dh_pk))
+            client_dh_pk = deserialize_public_key(secure_socket.recv(1024))
+            aes_key = derive_shared_key(dh_sk, client_dh_pk)
+        if(dh_ec):
+            ecdh_sk, ecdh_pk = generate_ecdh_key_pair(ecdh_params)
+            secure_socket.send(serialize_public_key(ecdh_pk))
+            ecclient_dh_pk = deserialize_public_key(secure_socket.recv(1024))
+            aes_key = derive_shared_key(ecdh_sk, ecclient_dh_pk)
+
         while True:
             command = receive_message(aes_key, secure_socket)
             if command == 'quit':
@@ -432,6 +456,9 @@ def start_server():
     secure_socket.listen(5)
     secure_socket.settimeout(1)
 
+    dh_params = generate_dh_parameters()
+    ecdh_params = generate_ecdh_parameters()
+
     if not os.path.exists("server/private_key.pem") or not os.path.exists("server/public_key.pem"):
         print("Server does not have RSA keys. They are currently being created in ./server")
         os.makedirs("server")
@@ -455,7 +482,7 @@ def start_server():
             client_socket, address = secure_socket.accept()
             print(f"Connection from {address} has been established!")
             # Start a new thread to handle the client
-            client_thread = threading.Thread(target=handle_client, args=(client_socket,))
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, dh_params, ecdh_params))
             client_thread.start()
         except KeyboardInterrupt:
             print("\nbye bye")

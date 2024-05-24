@@ -10,6 +10,11 @@ import bcrypt
 import hashlib
 import getpass  # Import getpass module
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import dh
+from cryptography.hazmat.primitives.serialization import load_pem_public_key, Encoding, PublicFormat, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives.asymmetric import ec
 
 def send_message(message, key, sockety):
     message = message.encode('utf-8')
@@ -185,6 +190,42 @@ def verify_signature(public_key, message, signature):
         return True
     except InvalidSignature:
         return False
+    
+def generate_dh_parameters():
+    return dh.generate_parameters(generator=2, key_size=2048)
+
+def generate_dh_key_pair(parameters):
+    private_key = parameters.generate_private_key()
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+def derive_shared_key(private_key, peer_public_key):
+    shared_key = private_key.exchange(peer_public_key)
+    derived_key = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+    ).derive(shared_key)
+    return derived_key
+
+def serialize_public_key(public_key):
+    return public_key.public_bytes(
+        encoding=Encoding.PEM,
+        format=PublicFormat.SubjectPublicKeyInfo
+    )
+
+def deserialize_public_key(public_key_bytes):
+    return load_pem_public_key(public_key_bytes)
+
+def generate_ecdh_parameters():
+    return ec.generate_parameters(ec.SECP256R1())
+
+def generate_ecdh_key_pair(parameters):
+    private_key = parameters.generate_private_key()
+    public_key = private_key.public_key()
+    return private_key, public_key
+
 
 def start_client():
     """
@@ -237,6 +278,22 @@ def start_client():
         # Decrypt the AES-GCM key using the client's private key
         aes_key = decrypt_with_private_key(private_key, encrypted_aes_key)
         print("AES-GCM key decrypted with client's private key.")
+
+        dh_params = generate_dh_parameters()
+        ecdh_params = generate_ecdh_parameters()
+
+        dh = False
+        dh_ec = False
+        if(dh):
+            dh_sk, dh_pk = generate_dh_key_pair(dh_params)
+            secure_socket.send(serialize_public_key(dh_pk))
+            client_dh_pk = deserialize_public_key(secure_socket.recv(1024))
+            aes_key = derive_shared_key(dh_sk, client_dh_pk)
+        if(dh_ec):
+            ecdh_sk, ecdh_pk = generate_ecdh_key_pair(ecdh_params)
+            secure_socket.send(serialize_public_key(ecdh_pk))
+            ecclient_dh_pk = deserialize_public_key(secure_socket.recv(1024))
+            aes_key = derive_shared_key(ecdh_sk, ecclient_dh_pk)
 
         server_password = ""
         id = 0
