@@ -311,15 +311,12 @@ def serialize_public_key(public_key):
 def deserialize_public_key(public_key_bytes):
     return load_pem_public_key(public_key_bytes)
 
-def generate_ecdh_parameters():
-    return ec.generate_parameters(ec.SECP256R1())
-
-def generate_ecdh_key_pair(parameters):
-    private_key = parameters.generate_private_key()
+def generate_ecdh_key_pair():
+    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     public_key = private_key.public_key()
     return private_key, public_key
 
-def handle_client(secure_socket, dh_params, ecdh_params):
+def handle_client(secure_socket, ):
     """
     Handles client requests. This includes registration, login, and command execution.
     """
@@ -361,15 +358,16 @@ def handle_client(secure_socket, dh_params, ecdh_params):
         secure_socket.send(signature)
         print("Encrypted AES-GCM key and signature sent to client.")
 
-        dh = False
-        dh_ec = False
-        if(dh):
+        dh_toggle = False
+        dh_ec_toggle = False
+        if(dh_toggle):
+            dh_params = generate_dh_parameters()
             dh_sk, dh_pk = generate_dh_key_pair(dh_params)
             secure_socket.send(serialize_public_key(dh_pk))
             client_dh_pk = deserialize_public_key(secure_socket.recv(1024))
             aes_key = derive_shared_key(dh_sk, client_dh_pk)
-        if(dh_ec):
-            ecdh_sk, ecdh_pk = generate_ecdh_key_pair(ecdh_params)
+        if(dh_ec_toggle):
+            ecdh_sk, ecdh_pk = generate_ecdh_key_pair()
             secure_socket.send(serialize_public_key(ecdh_pk))
             ecclient_dh_pk = deserialize_public_key(secure_socket.recv(1024))
             aes_key = derive_shared_key(ecdh_sk, ecclient_dh_pk)
@@ -456,9 +454,6 @@ def start_server():
     secure_socket.listen(5)
     secure_socket.settimeout(1)
 
-    dh_params = generate_dh_parameters()
-    ecdh_params = generate_ecdh_parameters()
-
     if not os.path.exists("server/private_key.pem") or not os.path.exists("server/public_key.pem"):
         print("Server does not have RSA keys. They are currently being created in ./server")
         os.makedirs("server")
@@ -482,7 +477,7 @@ def start_server():
             client_socket, address = secure_socket.accept()
             print(f"Connection from {address} has been established!")
             # Start a new thread to handle the client
-            client_thread = threading.Thread(target=handle_client, args=(client_socket, dh_params, ecdh_params))
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, ))
             client_thread.start()
         except KeyboardInterrupt:
             print("\nbye bye")
