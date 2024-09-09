@@ -26,4 +26,4 @@ Watch the demonstration video on [YouTube](https://www.youtube.com/watch?v=E1cN
 
 ## Project Schema
 
-View the project schema in `projectschema.png`.
+View the project schema [here](https://github.com/jmbmartins/SecureShell/blob/main/projectschema.png).
