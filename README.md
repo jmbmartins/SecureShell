@@ -26,4 +26,4 @@ Watch the demonstration video on [YouTube](https://www.youtube.com/watch?v=E1cN
 
 ## Project Schema
 
-View the project schema in `project_schema.png`.
+View the project schema in `projectschema.png`.
