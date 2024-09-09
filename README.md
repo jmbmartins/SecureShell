@@ -1,4 +1,4 @@
-# SecureShell Team Work SSI
+# SecureShell 
 
 ## Introduction
 
