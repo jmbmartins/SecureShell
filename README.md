@@ -22,7 +22,7 @@ This project aims to build a client/server system that mimics Secure Shell (SSH)
 
 ## Demonstration
 
-Watch the demonstration video on [[!YouTube](https://img.youtube.com/vi/E1cNaFfcUis/0.jpg)](https://www.youtube.com/watch?v=E1cNaFfcUis)
+Watch the demonstration video on [YouTube](https://www.youtube.com/watch?v=E1cNaFfcUis).
 
 ## Project Schema
 
