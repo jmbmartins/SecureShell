@@ -11,7 +11,7 @@ This project aims to build a client/server system that mimics Secure Shell (SSH)
 -   **uptime**: Returns the system uptime (not available on Windows).
 -   **help**: Lists the available commands.
 
-These commands are used to interact with the host machine securely after establishing a connection and authenticating the user. **The focus is on secure communication rather than the breadth of commands**.
+These commands are used to interact with the host machine securely after establishing a connection and authenticating the user. The focus is on **secure communication rather than the breadth of commands**.
 
 ### Basic Features
 
