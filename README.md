@@ -1,6 +1,6 @@
 # SecureShell 
 
-Note: This is a learning project, which is why the secret keys are visible.
+**Note:** This is a learning project, which is why the secret keys are visible.
 
 ## Introduction
 
