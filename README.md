@@ -1,5 +1,7 @@
 # SecureShell 
 
+Note: This is a learning project, which is why the secret keys are visible.
+
 ## Introduction
 
 This project aims to build a client/server system that mimics Secure Shell (SSH). The server application accepts connections from client applications, authenticates registered users, establishes session keys, and allows clients to submit commands that are typically used in an SSH session. Here are the commands detailed in the text:
